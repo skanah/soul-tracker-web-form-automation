@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sign in · SoulTracker Automation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-slate-100 min-h-screen flex items-center justify-center p-8 font-sans">
+    <div class="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+      <h1 class="text-xl font-bold text-slate-800">SoulTracker · Automation</h1>
+      <p class="text-xs text-slate-500 mt-1 mb-6">
+        Admin sign-in required. This dashboard handles account data.
+      </p>
+
+      {% if error %}
+      <p class="mb-4 text-sm text-red-600 font-semibold">{{ error }}</p>
+      {% endif %}
+
+      <form method="POST" action="/login" class="space-y-4">
+        <input type="hidden" name="next" value="{{ next }}" />
+        <div>
+          <label
+            for="password"
+            class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"
+            >Admin password</label
+          >
+          <input
+            type="password"
+            id="password"
+            name="password"
+            required
+            autofocus
+            autocomplete="current-password"
+            class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400"
+          />
+        </div>
+        <button
+          type="submit"
+          class="w-full bg-slate-800 text-white font-semibold px-4 py-2.5 rounded-lg hover:bg-slate-900 transition"
+        >
+          Sign in
+        </button>
+      </form>
+    </div>
+  </body>
+</html>

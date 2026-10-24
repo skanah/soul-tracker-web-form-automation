@@ -1,0 +1,13 @@
+# Target interpreter: Python 3.13 (C:\Users\snikb\AppData\Local\Programs\Python\Python313)
+# Every pin below must ship cp313/py3 wheels. Otherwise pip falls back to a source
+# build, which fails on Python 3.13 because its C-API changed (e.g. the
+# _PyLong_AsByteArray signature -> MSVC error C2198) and Cython 0.29.x cannot
+# generate C for it.
+
+flask==3.0.0
+flask-socketio==5.3.6
+playwright==1.54.0    # 1.40.0 pinned greenlet==3.0.1 (no cp313 wheel -> source build)
+pandas==2.2.3         # 2.1.3 has no cp313 wheel -> source build fails
+openpyxl==3.1.2
+python-dotenv==1.0.0
+eventlet==0.41.2      # Python 3.13 support was added in eventlet 0.38.0

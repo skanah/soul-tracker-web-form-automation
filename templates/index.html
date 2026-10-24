@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SoulTracker · Automation Dashboard</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-slate-100 min-h-screen p-8 font-sans">
+    <div class="max-w-6xl mx-auto space-y-6">
+      <div class="flex items-center justify-between gap-3 flex-wrap">
+        <h1 class="text-2xl font-bold text-slate-800">
+          SoulTracker · Multi‑Account Automation
+        </h1>
+        <a
+          href="/logout"
+          class="text-sm bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300"
+          >Log out</a
+        >
+      </div>
+
+      <!-- Upload Section -->
+      <div class="grid md:grid-cols-2 gap-6">
+        <!-- Accounts CSV -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+          <h2 class="font-bold text-slate-700 mb-2">1. Accounts CSV</h2>
+          <p class="text-xs text-slate-500 mb-3">
+            Columns: <code>account_id, email, password</code> + optional
+            column named exactly <code>quota</code> (e.g. 50000, 50k - blank = even share)
+          </p>
+          <input
+            type="file"
+            id="accountsFile"
+            accept=".csv"
+            class="block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-brand-600 file:text-white hover:file:bg-brand-700"
+          />
+          <button
+            id="uploadAccountsBtn"
+            class="mt-3 bg-slate-800 text-white px-4 py-2 rounded-lg text-sm hover:bg-slate-900"
+          >
+            Upload Accounts
+          </button>
+          <p id="accountsStatus" class="mt-2 text-xs text-green-600"></p>
+        </div>
+
+        <!-- Souls Excel/CSV -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+          <h2 class="font-bold text-slate-700 mb-2">
+            2. Souls File (.xlsx / .csv)
+          </h2>
+          <p class="text-xs text-slate-500 mb-3">
+            Required: <code>firstName, lastName</code> and <code>phone</code> or
+            <code>email</code>
+            <br />
+            Optional: <code>gender, city, state, title</code>
+            <br />
+            Track columns (optional):
+            <code>churchService, foundationClass, kingsChatId</code>
+          </p>
+          <input
+            type="file"
+            id="soulsFile"
+            accept=".csv,.xlsx,.xls"
+            class="block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-brand-600 file:text-white hover:file:bg-brand-700"
+          />
+          <button
+            id="uploadSoulsBtn"
+            class="mt-3 bg-slate-800 text-white px-4 py-2 rounded-lg text-sm hover:bg-slate-900"
+          >
+            Upload Souls
+          </button>
+          <p id="soulsStatus" class="mt-2 text-xs text-green-600"></p>
+        </div>
+      </div>
+
+      <!-- Execute -->
+      <div
+        class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-3"
+      >
+        <div class="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h2 class="font-bold text-slate-700">3. Execute</h2>
+            <p class="text-xs text-slate-500">
+              Launches parallel browser sessions (max 5 at a time).
+            </p>
+          </div>
+          <div class="flex items-center gap-3">
+            <label
+              for="runMode"
+              class="text-[10px] font-bold text-slate-400 uppercase tracking-widest"
+              >Mode</label
+            >
+            <select
+              id="runMode"
+              class="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-700"
+            >
+              <option value="add">Add souls</option>
+              <option value="add_then_track">Add + Track souls</option>
+              <option value="track">Track souls</option>
+            </select>
+            <button
+              id="runBtn"
+              disabled
+              class="bg-brand-600 disabled:opacity-40 text-white font-semibold px-6 py-3 rounded-xl hover:bg-brand-700 transition"
+            >
+              ▶ Run Automation
+            </button>
+          </div>
+        </div>
+        <p id="modeHint" class="text-xs text-slate-500"></p>
+      </div>
+
+      <!-- Progress -->
+      <div
+        id="progressCard"
+        class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4 hidden"
+      >
+        <div class="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h2 class="font-bold text-slate-700">4. Progress</h2>
+            <p id="progSummary" class="text-xs text-slate-500"></p>
+          </div>
+          <div class="flex items-center gap-2">
+            <a
+              id="failuresLink"
+              href="/failures.csv"
+              download
+              class="hidden text-[11px] bg-red-50 text-red-600 border border-red-100 px-3 py-1 rounded-full font-semibold"
+              >⬇ Failed rows.csv</a
+            >
+            <span
+              id="runState"
+              class="text-xs bg-slate-700 text-white px-3 py-1 rounded-full"
+              >pending</span
+            >
+          </div>
+        </div>
+
+        <div>
+          <div class="flex justify-between text-xs text-slate-500 mb-1">
+            <span id="progText">0 / 0</span>
+            <span id="etaText"></span>
+          </div>
+          <div class="h-3 bg-slate-100 rounded-full overflow-hidden">
+            <div
+              id="progBar"
+              class="h-3 bg-brand-600 rounded-full transition-all duration-500"
+              style="width: 0%"
+            ></div>
+          </div>
+          <div class="flex flex-wrap gap-4 mt-2 text-xs text-slate-600">
+            <span>✅ <b id="cOk">0</b> ok</span>
+            <span>❌ <b id="cFail">0</b> failed</span>
+            <span>⏭ <b id="cSkip">0</b> skipped</span>
+            <span>➕ <b id="cAdded">0</b> added</span>
+            <span>🔄 <b id="cRunning">0</b> running</span>
+            <span>⏳ <b id="cPending">0</b> pending</span>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs">
+            <thead>
+              <tr class="text-left text-slate-400 uppercase text-[10px] tracking-widest">
+                <th class="py-1 pr-3">Account</th>
+                <th class="pr-3 text-right">Assigned</th>
+                <th class="pr-3 text-right">Done</th>
+                <th class="pr-3 text-right">OK</th>
+                <th class="pr-3 text-right">Fail</th>
+                <th class="pr-3">State</th>
+                <th class="w-40">Progress</th>
+              </tr>
+            </thead>
+            <tbody id="acctRows"></tbody>
+          </table>
+        </div>
+
+        <p id="doneBanner" class="hidden text-sm font-semibold"></p>
+        <p id="planWarnings" class="text-xs text-amber-600"></p>
+      </div>
+
+      <!-- Logs -->
+      <div class="bg-slate-900 text-slate-100 rounded-2xl p-6 shadow-sm">
+        <div class="flex justify-between items-center mb-3">
+          <h2 class="font-bold">Live Logs</h2>
+          <span
+            id="statusBadge"
+            class="text-xs bg-slate-700 px-3 py-1 rounded-full"
+            >idle</span
+          >
+        </div>
+        <pre
+          id="logBox"
+          class="text-xs font-mono max-h-96 overflow-y-auto whitespace-pre-wrap"
+        ></pre>
+      </div>
+    </div>
+
+    <script>
+      const socket = io();
+      let accounts = [];
+      let soulsCount = 0;
+
+      const logBox = document.getElementById("logBox");
+      const statusBadge = document.getElementById("statusBadge");
+
+      function appendLog(msg) {
+        const t = new Date().toLocaleTimeString();
+        logBox.textContent += `[${t}] ${msg}\n`;
+        logBox.scrollTop = logBox.scrollHeight;
+      }
+
+      socket.on("log", (d) => appendLog(d.message));
+      socket.on("result", (r) => {
+        const stage = r.stage ? `[${r.stage}] ` : "";
+        const applied =
+          r.applied && Object.keys(r.applied).length
+            ? ` — ${Object.entries(r.applied)
+                .map(([k, v]) => `${k}=${v}`)
+                .join(", ")}`
+            : "";
+        const card =
+          r.card && r.card.foundationSchool
+            ? ` | now: ${r.card.foundationSchool} / ${r.card.churchAttendance ?? "-"}`
+            : "";
+        appendLog(
+          `  ↳ ${stage}${r.account} | ${r.soul} | ${r.status}${
+            r.matchedBy ? " (" + r.matchedBy + ")" : ""
+          }${applied}${card}${r.error ? " — " + r.error : ""}`,
+        );
+      });
+      socket.on("progress", (job) => renderProgress(job));
+      socket.on("done", (job) => renderDone(job));
+
+      // ---- Progress card ----
+      const progressCard = document.getElementById("progressCard");
+      const nf = (v) => Number(v || 0).toLocaleString();
+
+      function fmtEta(seconds) {
+        if (seconds == null || !isFinite(seconds)) return "";
+        const d = Math.floor(seconds / 86400);
+        const h = Math.floor((seconds % 86400) / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        if (d > 0) return `ETA ${d}d ${h}h`;
+        if (h > 0) return `ETA ${h}h ${m}m`;
+        return `ETA ${m}m`;
+      }
+
+      function renderPlan(data) {
+        renderProgress({
+          mode: data.mode,
+          state: "pending",
+          live: true,
+          total: data.total,
+          processed: 0,
+          ok: 0,
+          fail: 0,
+          skip: 0,
+          added: 0,
+          running: 0,
+          pending: data.total,
+          pct: 0,
+          etaSeconds: null,
+          startedAt: null,
+          finishedAt: null,
+          warnings: data.warnings || [],
+          accounts: (data.plan || []).map((p) => ({
+            account_id: p.account_id,
+            assigned: p.assigned,
+            done: 0,
+            ok: 0,
+            fail: 0,
+            skip: 0,
+            added: 0,
+            running: 0,
+            pending: p.assigned,
+            state: "queued",
+          })),
+        });
+      }
+      function renderProgress(job) {
+        if (!job) {
+          progressCard.classList.add("hidden");
+          return;
+        }
+        progressCard.classList.remove("hidden");
+        const runBtn = document.getElementById("runBtn");
+        const unfinished = job.pending + job.running + job.added;
+
+        document.getElementById("progText").textContent =
+          `${nf(job.processed)} / ${nf(job.total)} (${job.pct || 0}%)`;
+        document.getElementById("progBar").style.width = (job.pct || 0) + "%";
+        document.getElementById("etaText").textContent =
+          job.live && unfinished > 0 ? fmtEta(job.etaSeconds) : "";
+        document.getElementById("cOk").textContent = nf(job.ok);
+        document.getElementById("cFail").textContent = nf(job.fail);
+        document.getElementById("cSkip").textContent = nf(job.skip);
+        document.getElementById("cAdded").textContent = nf(job.added);
+        document.getElementById("cRunning").textContent = nf(job.running);
+        document.getElementById("cPending").textContent = nf(job.pending);
+
+        const state = document.getElementById("runState");
+        if (job.live) {
+          state.textContent = "running";
+          state.className = "text-xs bg-amber-500 text-white px-3 py-1 rounded-full";
+        } else if (unfinished > 0) {
+          state.textContent = job.state === "failed" ? "interrupted" : "paused";
+          state.className = "text-xs bg-slate-500 text-white px-3 py-1 rounded-full";
+        } else {
+          state.textContent = "done";
+          state.className = "text-xs bg-green-600 text-white px-3 py-1 rounded-full";
+        }
+
+        document.getElementById("progSummary").textContent =
+          `${String(job.mode || "").replaceAll("_", " ")} · ${nf(job.total)} souls · started ` +
+          (job.startedAt ? new Date(job.startedAt * 1000).toLocaleString() : "-");
+
+        document.getElementById("acctRows").innerHTML = (job.accounts || [])
+          .map((a) => {
+            const pct = a.assigned ? Math.round((a.done / a.assigned) * 100) : 100;
+            const stateClass =
+              a.state === "done"
+                ? "text-green-600"
+                : a.state === "running"
+                  ? "text-amber-600"
+                  : a.state === "login_failed" || a.state === "interrupted"
+                    ? "text-red-500"
+                    : "text-slate-400";
+            return `<tr class="border-t border-slate-100">
+              <td class="py-1.5 pr-3 font-semibold text-slate-700">${a.account_id}</td>
+              <td class="pr-3 text-right">${nf(a.assigned)}</td>
+              <td class="pr-3 text-right">${nf(a.done)}</td>
+              <td class="pr-3 text-right text-green-600">${nf(a.ok)}</td>
+              <td class="pr-3 text-right text-red-500">${nf(a.fail)}</td>
+              <td class="pr-3 text-[10px] font-bold uppercase tracking-wider ${stateClass}">${a.state}</td>
+              <td><div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div class="h-full bg-brand-500 rounded-full" style="width:${pct}%"></div>
+              </div></td>
+            </tr>`;
+          })
+          .join("");
+
+        document.getElementById("failuresLink").classList.toggle("hidden", !job.fail);
+        document.getElementById("planWarnings").innerHTML = (job.warnings || [])
+          .map((w) => "⚠ " + w)
+          .join("<br />");
+
+        if (job.live) {
+          runBtn.disabled = true;
+          runBtn.textContent = "Running…";
+          statusBadge.textContent = "running";
+          statusBadge.className = "text-xs bg-amber-500 px-3 py-1 rounded-full";
+        } else if (unfinished > 0) {
+          runBtn.disabled = false;
+          runBtn.textContent = "▶ Resume run";
+          statusBadge.textContent = "paused";
+          statusBadge.className = "text-xs bg-slate-700 px-3 py-1 rounded-full";
+        } else {
+          runBtn.disabled = false;
+          runBtn.textContent = "▶ Start new run";
+          statusBadge.textContent = "done";
+          statusBadge.className = "text-xs bg-green-600 px-3 py-1 rounded-full";
+        }
+      }
+
+      function renderDone(job) {
+        if (!job) return;
+        renderProgress(job);
+        const unfinished = job.pending + job.running + job.added;
+        const banner = document.getElementById("doneBanner");
+        const when = job.finishedAt
+          ? new Date(job.finishedAt * 1000).toLocaleTimeString()
+          : "";
+        banner.classList.remove("hidden");
+        banner.textContent =
+          `${job.state === "failed" ? "⚠ Run interrupted" : "✅ All done"} at ${when} — ` +
+          `${nf(job.ok)} ok · ${nf(job.fail)} failed · ${nf(job.skip)} skipped` +
+          (unfinished ? ` · ${nf(unfinished)} still pending (Resume to continue)` : "");
+        banner.className =
+          "text-sm font-semibold " + (unfinished ? "text-amber-600" : "text-green-600");
+      }
+      // ---- Uploads ----
+      async function upload(url, file, statusEl, callback) {
+        const fd = new FormData();
+        fd.append("file", file);
+        statusEl.textContent = "Uploading…";
+        statusEl.className = "mt-2 text-xs text-slate-500";
+        try {
+          const res = await fetch(url, { method: "POST", body: fd });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error);
+          statusEl.textContent =
+            "✅ " + (data.count ?? data.accounts.length) + " rows loaded";
+          statusEl.className = "mt-2 text-xs text-green-600";
+          callback(data);
+        } catch (e) {
+          statusEl.textContent = "❌ " + e.message;
+          statusEl.className = "mt-2 text-xs text-red-600";
+        }
+        checkReady();
+      }
+
+      document.getElementById("uploadAccountsBtn").onclick = () => {
+        const file = document.getElementById("accountsFile").files[0];
+        if (!file) return;
+        upload(
+          "/upload/accounts",
+          file,
+          document.getElementById("accountsStatus"),
+          (d) => (accounts = d.accounts),
+        );
+      };
+
+      document.getElementById("uploadSoulsBtn").onclick = () => {
+        const file = document.getElementById("soulsFile").files[0];
+        if (!file) return;
+        upload(
+          "/upload/souls",
+          file,
+          document.getElementById("soulsStatus"),
+          (d) => {
+            soulsCount = d.count;
+            const track = d.trackingColumns || [];
+            document.getElementById("soulsStatus").textContent += track.length
+              ? ` · track: ${track.join(", ")}`
+              : " · no track columns (Add only)";
+          },
+        );
+      };
+
+      function checkReady() {
+        document.getElementById("runBtn").disabled = !(accounts.length && soulsCount);
+      }
+
+      // ---- Run ----
+      const runModeSel = document.getElementById("runMode");
+      const modeHint = document.getElementById("modeHint");
+      const MODE_HINTS = {
+        add: "Creates every soul on the New Soul form.",
+        track:
+          "Finds each soul on the Track Souls page, opens its Track drawer and saves the church service, foundation school class, KingsChat ID, phone and email.",
+        add_then_track:
+          "Adds every soul first, then tracks it on the Track Souls page.",
+      };
+
+      function syncModeHint() {
+        modeHint.textContent = MODE_HINTS[runModeSel.value] || "";
+      }
+      runModeSel.onchange = syncModeHint;
+      syncModeHint();
+
+      document.getElementById("runBtn").onclick = async () => {
+        const runBtn = document.getElementById("runBtn");
+        const previousLabel = runBtn.textContent;
+        if (runBtn.textContent.includes("Start new run")) {
+          const sure = confirm(
+            "Start a NEW run? This resets the current job. Rows already finished " +
+              "will be submitted again if you use the same file.",
+          );
+          if (!sure) return;
+          const rr = await fetch("/job/reset", { method: "POST" });
+          const rd = await rr.json();
+          if (!rr.ok) {
+            appendLog("❌ " + (rd.error || "reset failed"));
+            return;
+          }
+          document.getElementById("doneBanner").classList.add("hidden");
+        }
+        logBox.textContent = "";
+        statusBadge.textContent = "running";
+        statusBadge.className = "text-xs bg-amber-500 px-3 py-1 rounded-full";
+        runBtn.disabled = true;
+        runBtn.textContent = "Running…";
+        const res = await fetch("/run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: runModeSel.value }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          appendLog("❌ " + (data.error || res.statusText));
+          statusBadge.textContent = "idle";
+          statusBadge.className = "text-xs bg-slate-700 px-3 py-1 rounded-full";
+          runBtn.disabled = false;
+          runBtn.textContent = previousLabel.trim() || "▶ Run Automation";
+          return;
+        }
+        appendLog(data.message);
+        (data.warnings || []).forEach((w) => appendLog("⚠ " + w));
+        renderPlan(data);
+      };
+
+      // Restore an existing job after a page reload
+      (async function restoreStatus() {
+        try {
+          const res = await fetch("/status");
+          const data = await res.json();
+          if (data.logs && data.logs.length) {
+            logBox.textContent = "";
+            data.logs.forEach((m) => appendLog(m));
+          }
+          const job = data.job;
+          if (job) {
+            const unfinished = job.pending + job.running + job.added;
+            if (!job.live && unfinished === 0) renderDone(job);
+            else renderProgress(job);
+          }
+        } catch (e) {
+          /* server not ready yet */
+        }
+      })();
+    </script>
+  </body>
+</html>

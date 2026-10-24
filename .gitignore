@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Runtime job data — contains account passwords, admin password and PII.
+# NEVER commit this folder.
+data/
+
+# Uploaded / generated data files
+*.csv
+*.xlsx
+*.db
+*.db-*
+*.db.backup-*
+*.db.old-*
+
+# Logs & local run output
+*.log
+*_out.txt
+server_run.log
+
+# Local-only artefacts
+*.zip
+*.png
+nul
+app_prev.py
+probe_*.py
+probe_*.png
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.qodo/

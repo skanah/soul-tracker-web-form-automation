@@ -1,0 +1,39 @@
+# SoulTracker Automation dashboard - systemd unit for a Linux VPS.
+#
+# This is what keeps st.skanah.com from "stopping": the app restarts on any
+# crash/reboot (Restart=always) and AUTO_RESUME=1 continues an unfinished run
+# as soon as the process comes back - no browser or dashboard open needed.
+#
+# Install (as root):
+#   1. copy this file to /etc/systemd/system/soultracker.service
+#   2. edit User, WorkingDirectory and the venv path below to match your setup
+#   3. systemctl daemon-reload
+#   4. systemctl enable --now soultracker
+#   5. journalctl -u soultracker -f        # live logs
+#
+# Memory: each account context runs its own Chromium (~150 MB). Keep
+# MAX_CONCURRENT_ACCOUNTS at roughly (RAM_GB x 5) or lower, or the kernel
+# OOM-killer will take the whole app down - the classic "site stops" cause.
+[Unit]
+Description=SoulTracker Automation dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/soultracker-maas
+# FLASK_DEBUG=0 is required in production (the debug reloader is for local dev)
+Environment=FLASK_DEBUG=0
+Environment=AUTO_RESUME=1
+# served behind nginx on the same box -> only loopback
+Environment=HOST=127.0.0.1
+Environment=PORT=5000
+Environment=SOCKETIO_ASYNC_MODE=eventlet
+Environment=MAX_CONCURRENT_ACCOUNTS=10
+ExecStart=/opt/soultracker-maas/.venv/bin/python app.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
